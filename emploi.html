@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importer et Afficher un Fichier Excel</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+            font-family: Arial, sans-serif;
+            margin-top: 100px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .file-input-container {
+            text-align: center;
+            margin: 20px auto;
+        }
+        .file-input-container input[type="file"] {
+            display: none;
+        }
+        .file-input-container label {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: inline-block;
+            margin-top: 50px;
+
+        }
+        .file-input-container label:hover {
+            background-color: #0056b3;
+        }
+        .error {
+            color: red;
+            text-align: center;
+        }
+        h1 {
+            text-align: center;
+            margin-top: 40px;
+            color:#0056b3; ;
+        }
+    </style>
+</head>
+<body>
+   <h1>Votre emploi du temps</h1>
+    <div id="tableContainer"></div>
+    <div id="errorMessage" class="error"></div>
+    <div class="file-input-container">
+        <input type="file" id="excelFile" accept=".xlsx, .xls">
+        <label for="excelFile"> Télécharger votre emploi du temps</label>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        // Fonction pour afficher le tableau à partir des données JSON
+        function displayTable(jsonData) {
+            if (!jsonData || jsonData.length === 0) return;
+
+            const headers = jsonData[0];
+            if (!headers.includes('lundi') && !headers.some(h => h.includes('8:30-10:30'))) {
+                document.getElementById('errorMessage').innerHTML = 'Les en-têtes ne contiennent pas les colonnes attendues (ex. "lundi", "8:30-10:30"). Vérifiez votre fichier Excel.';
+                return;
+            }
+
+            let table = '<table>';
+            jsonData.forEach((row, rowIndex) => {
+                table += '<tr>';
+                row.forEach(cell => {
+                    const cellContent = cell == null ? '' : cell;
+                    table += rowIndex === 0 ? `<th>${cellContent}</th>` : `<td>${cellContent}</td>`;
+                });
+                table += '</tr>';
+            });
+            table += '</table>';
+
+            document.getElementById('tableContainer').innerHTML = table;
+        }
+
+        // Charger les données stockées dans localStorage au chargement de la page
+        window.addEventListener('load', function() {
+            const storedData = localStorage.getItem('excelData');
+            if (storedData) {
+                const jsonData = JSON.parse(storedData);
+                displayTable(jsonData);
+            }
+        });
+
+        // Gérer le changement de fichier
+        document.getElementById('excelFile').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const errorMessage = document.getElementById('errorMessage');
+                errorMessage.innerHTML = '';
+
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+
+                    const range = XLSX.utils.decode_range(worksheet['!ref']);
+                    const jsonData = [];
+
+                    for (let rowNum = range.s.r; rowNum <= range.e.r; rowNum++) {
+                        const row = [];
+                        for (let colNum = range.s.c; colNum <= range.e.c; colNum++) {
+                            const cellAddress = XLSX.utils.encode_cell({ r: rowNum, c: colNum });
+                            const cell = worksheet[cellAddress];
+                            row.push(cell ? cell.v : '');
+                        }
+                        jsonData.push(row);
+                    }
+
+                    if (jsonData.length === 0) {
+                        errorMessage.innerHTML = 'Le fichier Excel est vide.';
+                        return;
+                    }
+
+                    // Stocker les données dans localStorage
+                    localStorage.setItem('excelData', JSON.stringify(jsonData));
+
+                    // Afficher le tableau
+                    displayTable(jsonData);
+
+                } catch (error) {
+                    errorMessage.innerHTML = 'Erreur lors de la lecture du fichier Excel : ' + error.message;
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        });
+    </script>
+</body>
+</html>

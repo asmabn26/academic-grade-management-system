@@ -1,0 +1,7 @@
+.git/
+.idea/
+.vscode/
+*.log
+*.xlsx
+uploads/
+config.php
